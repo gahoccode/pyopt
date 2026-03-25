@@ -2,6 +2,7 @@
 name = "pyopt"
 version = "0.1.0"
 description = "Stock Portfolio Optimization using Modern Portfolio Theory"
+readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "altair",
