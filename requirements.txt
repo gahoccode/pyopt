@@ -1,0 +1,8 @@
+altair
+matplotlib
+numpy
+pandas
+pyportfolioopt
+riskfolio-lib
+streamlit
+vnstock

@@ -1,0 +1,26 @@
+[project]
+name = "pyopt"
+version = "0.1.0"
+description = "Stock Portfolio Optimization using Modern Portfolio Theory"
+requires-python = ">=3.10"
+dependencies = [
+    "altair",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pyportfolioopt",
+    "riskfolio-lib",
+    "streamlit",
+    "vnstock",
+]
+
+[project.scripts]
+pyopt = "pyopt_cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+only-include = ["pyopt_cli.py", "streamlit_app.py"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
