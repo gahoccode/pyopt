@@ -18,8 +18,66 @@ from pypfopt import (
 from pypfopt.discrete_allocation import get_latest_prices
 from vnstock import Listing, Quote
 
+VNSTOCK_PRICE_UNIT = 1000
 
-# --- Inlined helper functions ---
+STRATEGY_MAP = {
+    "Max Sharpe Portfolio": ("Max Sharpe", "Max_Sharpe_Portfolio"),
+    "Min Volatility Portfolio": ("Min Volatility", "Min_Volatility_Portfolio"),
+    "Max Utility Portfolio": ("Max Utility", "Max_Utility_Portfolio"),
+}
+STRATEGY_CHOICES = list(STRATEGY_MAP.keys())
+
+
+def display_weights_table(weights: dict[str, float], label: str) -> None:
+    """Render a weights dict as a formatted Streamlit dataframe."""
+    st.write(f"**{label}**")
+    df = pd.DataFrame(list(weights.items()), columns=["Symbol", "Weight"])
+    df["Weight"] = df["Weight"].apply(lambda x: f"{x:.2%}")
+    st.dataframe(df, hide_index=True)
+
+
+def display_pie_chart(
+    weights: dict[str, float],
+    title: str,
+    colors: list[str] | None = None,
+) -> None:
+    """Create and display an Altair donut chart for portfolio weights."""
+    if colors is None:
+        colors = ["#56524D", "#76706C", "#AAA39F"]
+
+    data = pd.DataFrame(list(weights.items()), columns=["Symbol", "Weight"])
+    data = data[data["Weight"] > 0.01].sort_values("Weight", ascending=False)
+
+    if len(data) == 0:
+        st.write(f"No significant weights in {title}")
+        return
+
+    fill = (
+        colors[: len(data)]
+        if len(data) <= len(colors)
+        else colors + ["#D3D3D3"] * (len(data) - len(colors))
+    )
+    data["color"] = fill
+
+    chart = (
+        alt.Chart(data)
+        .mark_arc(innerRadius=50, stroke="white", strokeWidth=2)
+        .encode(
+            theta=alt.Theta("Weight:Q", title="Weight"),
+            color=alt.Color(
+                "Symbol:N",
+                scale=alt.Scale(range=data["color"].tolist()),
+                legend=alt.Legend(title="Symbols"),
+            ),
+            tooltip=[
+                alt.Tooltip("Symbol:N", title="Symbol"),
+                alt.Tooltip("Weight:Q", title="Weight", format=".2%"),
+            ],
+        )
+        .properties(width=350, height=350, title=title)
+    )
+
+    st.altair_chart(chart, width="stretch")
 
 
 def inject_custom_success_styling():
@@ -93,6 +151,7 @@ def fetch_portfolio_stock_data(
     return all_data
 
 
+@st.cache_data
 def process_portfolio_price_data(
     all_historical_data: dict[str, pd.DataFrame],
 ) -> pd.DataFrame:
@@ -112,9 +171,7 @@ def process_portfolio_price_data(
             if combined_prices.empty:
                 combined_prices = temp_df
             else:
-                combined_prices = pd.merge(
-                    combined_prices, temp_df, on="time", how="outer"
-                )
+                combined_prices = pd.merge(combined_prices, temp_df, on="time", how="outer")
 
     if combined_prices.empty:
         return combined_prices
@@ -130,15 +187,9 @@ def process_portfolio_price_data(
     return prices_df
 
 
-# --- Streamlit page configuration ---
-
-st.set_page_config(
-    page_title="Stock Portfolio Optimization", page_icon="", layout="wide"
-)
+st.set_page_config(page_title="Stock Portfolio Optimization", page_icon="", layout="wide")
 
 inject_custom_success_styling()
-
-# --- Sidebar: Symbol loading and selection ---
 
 st.sidebar.header("Portfolio Configuration")
 
@@ -157,8 +208,6 @@ symbols = st.sidebar.multiselect(
     help="Select multiple stock symbols for portfolio optimization",
 )
 
-# --- Sidebar: Date range ---
-
 col1, col2 = st.sidebar.columns(2)
 with col1:
     start_date = st.date_input(
@@ -173,8 +222,6 @@ with col2:
         value=pd.to_datetime("today") - pd.Timedelta(days=1),
         max_value=pd.to_datetime("today"),
     )
-
-# --- Sidebar: Risk and visualization ---
 
 risk_aversion = st.sidebar.number_input(
     "Risk Aversion Parameter", value=1.0, min_value=0.1, max_value=10.0, step=0.1
@@ -204,12 +251,9 @@ interval = "1D"
 start_date_str = start_date.strftime("%Y-%m-%d")
 end_date_str = end_date.strftime("%Y-%m-%d")
 
-# --- Main content ---
-
 st.title("Stock Portfolio Optimization")
 st.write("Optimize your portfolio using Modern Portfolio Theory")
 
-# Validate inputs
 if len(symbols) < 2:
     st.error("Please enter at least 2 ticker symbols.")
     st.stop()
@@ -218,31 +262,17 @@ if start_date >= end_date:
     st.error("Start date must be before end date.")
     st.stop()
 
-# Fetch and process data
-progress_bar = st.progress(0)
-status_text = st.empty()
-
-status_text.text("Fetching historical data...")
-
-all_historical_data = fetch_portfolio_stock_data(
-    symbols, start_date_str, end_date_str, interval
-)
-
-progress_bar.empty()
-status_text.empty()
+all_historical_data = fetch_portfolio_stock_data(symbols, start_date_str, end_date_str, interval)
 
 if not all_historical_data:
     st.error("No data was fetched for any symbol. Please check your inputs.")
     st.stop()
 
-status_text.text("Processing data...")
 prices_df = process_portfolio_price_data(all_historical_data)
 
 if prices_df.empty:
     st.error("No valid price data after processing.")
     st.stop()
-
-# --- Data Summary ---
 
 st.header("Data Summary")
 col1, col2 = st.columns(2)
@@ -266,9 +296,6 @@ with st.expander("View Price Data"):
 
     st.write(f"Shape: {prices_df.shape}")
 
-# --- Portfolio Optimization ---
-
-status_text.text("Calculating portfolio optimization...")
 returns = prices_df.pct_change().dropna()
 mu = expected_returns.mean_historical_return(prices_df)
 S = risk_models.sample_cov(prices_df)
@@ -291,19 +318,13 @@ ef_max_utility.max_quadratic_utility(risk_aversion=risk_aversion, market_neutral
 weights_max_utility = ef_max_utility.clean_weights()
 ret_utility, std_utility, sharpe_utility = ef_max_utility.portfolio_performance()
 
-status_text.empty()
-
-# --- Performance Metrics ---
-
 st.header("Portfolio Optimization Results")
 
 st.subheader("Performance Metrics")
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    st.metric(
-        "Max Sharpe Portfolio", f"{sharpe:.4f}", f"Return: {(ret_tangent * 100):.1f}%"
-    )
+    st.metric("Max Sharpe Portfolio", f"{sharpe:.4f}", f"Return: {(ret_tangent * 100):.1f}%")
 
 with col2:
     st.metric(
@@ -319,25 +340,33 @@ with col3:
         f"Return: {(ret_utility * 100):.1f}%",
     )
 
-# --- Strategy selection (shared across tabs) ---
-
 portfolio_choice = st.radio(
     "Select Portfolio Strategy:",
-    ["Max Sharpe Portfolio", "Min Volatility Portfolio", "Max Utility Portfolio"],
+    STRATEGY_CHOICES,
     help="This selection applies to Dollar Allocation, Report, and Risk Analysis tabs",
     horizontal=True,
     key="portfolio_strategy_master",
 )
 
-# --- Tabs ---
+weights_by_strategy = {
+    "Max Sharpe Portfolio": weights_max_sharpe,
+    "Min Volatility Portfolio": weights_min_vol,
+    "Max Utility Portfolio": weights_max_utility,
+}
+selected_weights = weights_by_strategy[portfolio_choice]
+portfolio_label, portfolio_name = STRATEGY_MAP[portfolio_choice]
+symbol_display = ", ".join(symbols[:3]) + ("..." if len(symbols) > 3 else "")
+selected_weights_df = pd.DataFrame.from_dict(selected_weights, orient="index", columns=["Weights"])
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "Efficient Frontier & Weights",
-    "Hierarchical Risk Parity",
-    "Dollars Allocation",
-    "Report",
-    "Risk Analysis",
-])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(
+    [
+        "Efficient Frontier & Weights",
+        "Hierarchical Risk Parity",
+        "Dollars Allocation",
+        "Report",
+        "Risk Analysis",
+    ]
+)
 
 with tab1:
     st.subheader("Efficient Frontier Analysis")
@@ -377,7 +406,7 @@ with tab1:
     n_samples = 5000
     w = np.random.dirichlet(np.ones(ef_plot.n_assets), n_samples)
     rets = w.dot(ef_plot.expected_returns)
-    stds = np.sqrt(np.diag(w @ ef_plot.cov_matrix @ w.T))
+    stds = np.sqrt(np.einsum("ij,jk,ik->i", w, ef_plot.cov_matrix, w))
     sharpes = rets / stds
 
     scatter = ax.scatter(stds, rets, marker=".", c=sharpes, cmap=colormap, alpha=0.6)
@@ -389,120 +418,54 @@ with tab1:
     ax.legend()
 
     st.pyplot(fig)
+    plt.close(fig)
 
-    # Portfolio Weights
     st.subheader("Portfolio Weights")
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        st.write("**Max Sharpe Portfolio**")
-        weights_df = pd.DataFrame(
-            list(weights_max_sharpe.items()), columns=["Symbol", "Weight"]
-        )
-        weights_df["Weight"] = weights_df["Weight"].apply(lambda x: f"{x:.2%}")
-        st.dataframe(weights_df, hide_index=True)
+        display_weights_table(weights_max_sharpe, "Max Sharpe Portfolio")
 
     with col2:
-        st.write("**Min Volatility Portfolio**")
-        weights_df = pd.DataFrame(
-            list(weights_min_vol.items()), columns=["Symbol", "Weight"]
-        )
-        weights_df["Weight"] = weights_df["Weight"].apply(lambda x: f"{x:.2%}")
-        st.dataframe(weights_df, hide_index=True)
+        display_weights_table(weights_min_vol, "Min Volatility Portfolio")
 
     with col3:
-        st.write("**Max Utility Portfolio**")
-        weights_df = pd.DataFrame(
-            list(weights_max_utility.items()), columns=["Symbol", "Weight"]
-        )
-        weights_df["Weight"] = weights_df["Weight"].apply(lambda x: f"{x:.2%}")
-        st.dataframe(weights_df, hide_index=True)
+        display_weights_table(weights_max_utility, "Max Utility Portfolio")
 
-    # Weight visualization
     st.subheader("Portfolio Weights Visualization")
-
-    pie_colors = ["#56524D", "#76706C", "#AAA39F"]
-
-    def create_pie_chart(weights_dict, title, colors):
-        """Create an Altair pie chart for portfolio weights."""
-        data = pd.DataFrame(list(weights_dict.items()), columns=["Symbol", "Weight"])
-        data = data[data["Weight"] > 0.01]
-        data = data.sort_values("Weight", ascending=False)
-
-        if len(data) == 0:
-            return None
-
-        data["color"] = (
-            colors[: len(data)]
-            if len(data) <= len(colors)
-            else colors + ["#D3D3D3"] * (len(data) - len(colors))
-        )
-
-        chart = (
-            alt.Chart(data)
-            .mark_arc(innerRadius=50, stroke="white", strokeWidth=2)
-            .encode(
-                theta=alt.Theta("Weight:Q", title="Weight"),
-                color=alt.Color(
-                    "Symbol:N",
-                    scale=alt.Scale(range=data["color"].tolist()),
-                    legend=alt.Legend(title="Symbols"),
-                ),
-                tooltip=[
-                    alt.Tooltip("Symbol:N", title="Symbol"),
-                    alt.Tooltip("Weight:Q", title="Weight", format=".2%"),
-                ],
-            )
-            .properties(width=350, height=350, title=title)
-        )
-
-        return chart
 
     col1, col2, col3 = st.columns(3)
 
     with col1:
-        pie1 = create_pie_chart(weights_max_sharpe, "Max Sharpe Portfolio", pie_colors)
-        if pie1:
-            st.altair_chart(pie1, width="stretch")
-        else:
-            st.write("No significant weights in Max Sharpe Portfolio")
+        display_pie_chart(weights_max_sharpe, "Max Sharpe Portfolio")
 
     with col2:
-        pie2 = create_pie_chart(weights_min_vol, "Min Volatility Portfolio", pie_colors)
-        if pie2:
-            st.altair_chart(pie2, width="stretch")
-        else:
-            st.write("No significant weights in Min Volatility Portfolio")
+        display_pie_chart(weights_min_vol, "Min Volatility Portfolio")
 
     with col3:
-        pie3 = create_pie_chart(
-            weights_max_utility, "Max Utility Portfolio", pie_colors
-        )
-        if pie3:
-            st.altair_chart(pie3, width="stretch")
-        else:
-            st.write("No significant weights in Max Utility Portfolio")
+        display_pie_chart(weights_max_utility, "Max Utility Portfolio")
 
-    # Detailed performance table
     st.subheader("Detailed Performance Analysis")
-    performance_df = pd.DataFrame({
-        "Portfolio": ["Max Sharpe", "Min Volatility", "Max Utility"],
-        "Expected Return": [
-            f"{ret_tangent:.4f}",
-            f"{ret_min_vol:.4f}",
-            f"{ret_utility:.4f}",
-        ],
-        "Volatility": [
-            f"{std_tangent:.4f}",
-            f"{std_min_vol:.4f}",
-            f"{std_utility:.4f}",
-        ],
-        "Sharpe Ratio": [
-            f"{sharpe:.4f}",
-            f"{sharpe_min_vol:.4f}",
-            f"{sharpe_utility:.4f}",
-        ],
-    })
+    performance_df = pd.DataFrame(
+        {
+            "Portfolio": ["Max Sharpe", "Min Volatility", "Max Utility"],
+            "Expected Return": [
+                f"{ret_tangent:.4f}",
+                f"{ret_min_vol:.4f}",
+                f"{ret_utility:.4f}",
+            ],
+            "Volatility": [
+                f"{std_tangent:.4f}",
+                f"{std_min_vol:.4f}",
+                f"{std_utility:.4f}",
+            ],
+            "Sharpe Ratio": [
+                f"{sharpe:.4f}",
+                f"{sharpe_min_vol:.4f}",
+                f"{sharpe_utility:.4f}",
+            ],
+        }
+    )
     st.dataframe(performance_df, hide_index=True)
 
 with tab2:
@@ -510,14 +473,13 @@ with tab2:
     weights_hrp = hrp.optimize()
 
     st.subheader("HRP Portfolio Weights")
-    weights_df = pd.DataFrame(list(weights_hrp.items()), columns=["Symbol", "Weight"])
-    weights_df["Weight"] = weights_df["Weight"].apply(lambda x: f"{x:.2%}")
-    st.dataframe(weights_df, hide_index=True)
+    display_weights_table(weights_hrp, "HRP Portfolio")
 
     st.subheader("HRP Dendrogram")
     fig_dendro, ax_dendro = plt.subplots(figsize=(12, 8))
     plotting.plot_dendrogram(hrp, ax=ax_dendro, show_tickers=True)
     st.pyplot(fig_dendro)
+    plt.close(fig_dendro)
 
 with tab3:
     st.subheader("Discrete Portfolio Allocation")
@@ -531,24 +493,12 @@ with tab3:
         help="Enter your total portfolio value in Vietnamese Dong (VND)",
     )
 
-    symbol_display = ", ".join(symbols[:3]) + ("..." if len(symbols) > 3 else "")
     st.info(f"**Using Strategy**: {portfolio_choice} | **Symbols**: {symbol_display}")
-
-    # Get the selected weights
-    if portfolio_choice == "Max Sharpe Portfolio":
-        selected_weights = weights_max_sharpe
-        portfolio_label = "Max Sharpe"
-    elif portfolio_choice == "Min Volatility Portfolio":
-        selected_weights = weights_min_vol
-        portfolio_label = "Min Volatility"
-    else:
-        selected_weights = weights_max_utility
-        portfolio_label = "Max Utility"
 
     if st.button("Calculate Allocation", key="discrete_allocation"):
         try:
             latest_prices = get_latest_prices(prices_df)
-            latest_prices_actual = latest_prices * 1000
+            latest_prices_actual = latest_prices * VNSTOCK_PRICE_UNIT
 
             da = DiscreteAllocation(
                 selected_weights,
@@ -557,17 +507,11 @@ with tab3:
             )
             allocation, leftover = da.greedy_portfolio()
 
-            st.success(
-                f"Allocation calculated successfully for {portfolio_label} Portfolio!"
-            )
+            st.success(f"Allocation calculated successfully for {portfolio_label} Portfolio!")
 
             st.subheader("Stock Allocation")
-            allocation_df = pd.DataFrame(
-                list(allocation.items()), columns=["Symbol", "Shares"]
-            )
-            allocation_df["Latest Price (VND)"] = allocation_df["Symbol"].map(
-                latest_prices_actual
-            )
+            allocation_df = pd.DataFrame(list(allocation.items()), columns=["Symbol", "Shares"])
+            allocation_df["Latest Price (VND)"] = allocation_df["Symbol"].map(latest_prices_actual)
             allocation_df["Total Value (VND)"] = (
                 allocation_df["Shares"] * allocation_df["Latest Price (VND)"]
             )
@@ -575,12 +519,12 @@ with tab3:
                 allocation_df["Total Value (VND)"] / portfolio_value * 100
             ).round(2)
 
-            allocation_df["Latest Price (VND)"] = allocation_df[
-                "Latest Price (VND)"
-            ].apply(lambda x: f"{x:,.0f}")
-            allocation_df["Total Value (VND)"] = allocation_df[
-                "Total Value (VND)"
-            ].apply(lambda x: f"{x:,.0f}")
+            allocation_df["Latest Price (VND)"] = allocation_df["Latest Price (VND)"].apply(
+                lambda x: f"{x:,.0f}"
+            )
+            allocation_df["Total Value (VND)"] = allocation_df["Total Value (VND)"].apply(
+                lambda x: f"{x:,.0f}"
+            )
 
             st.dataframe(allocation_df, hide_index=True)
 
@@ -606,22 +550,24 @@ with tab3:
                 st.metric("Stocks to Buy", total_stocks)
 
             st.subheader("Investment Summary")
+            alloc_pct = allocated_value / portfolio_value * 100
+            left_pct = leftover / portfolio_value * 100
             st.info(f"""
             **Portfolio Strategy**: {portfolio_label}
             **Total Investment**: {portfolio_value:,.0f} VND
-            **Allocated**: {allocated_value:,.0f} VND ({(allocated_value / portfolio_value * 100):.1f}%)
-            **Remaining Cash**: {leftover:,.0f} VND ({(leftover / portfolio_value * 100):.1f}%)
+            **Allocated**: {allocated_value:,.0f} VND ({alloc_pct:.1f}%)
+            **Remaining Cash**: {leftover:,.0f} VND ({left_pct:.1f}%)
             **Number of Stocks**: {total_stocks} stocks
             """)
 
         except Exception as e:
             st.error(f"Error calculating allocation: {str(e)}")
-            st.error(
-                "Please ensure you have selected stocks and loaded price data first."
-            )
+            st.error("Please ensure you have selected stocks and loaded price data first.")
     else:
         st.info(
-            "Click 'Calculate Allocation' to see how many shares to buy for each stock based on your selected portfolio strategy and investment amount."
+            "Click 'Calculate Allocation' to see how many shares to buy"
+            " for each stock based on your selected portfolio strategy"
+            " and investment amount."
         )
 
 with tab4:
@@ -633,26 +579,10 @@ with tab4:
     st.info(f"**Current Strategy**: {portfolio_choice}")
 
     if st.button("Generate Report", key="generate_excel_report"):
-        project_root = pathlib.Path(
-            pathlib.Path(pathlib.Path(__file__).resolve()).parent
-        ).parent
-        reports_dir = project_root / "exports" / "reports"
+        reports_dir = pathlib.Path(__file__).resolve().parent.parent / "exports" / "reports"
         reports_dir.mkdir(parents=True, exist_ok=True)
 
-        if portfolio_choice == "Max Sharpe Portfolio":
-            selected_weights = weights_max_sharpe
-            portfolio_name = "Max_Sharpe_Portfolio"
-            portfolio_label = "Max Sharpe"
-        elif portfolio_choice == "Min Volatility Portfolio":
-            selected_weights = weights_min_vol
-            portfolio_name = "Min_Volatility_Portfolio"
-            portfolio_label = "Min Volatility"
-        else:
-            selected_weights = weights_max_utility
-            portfolio_name = "Max_Utility_Portfolio"
-            portfolio_label = "Max Utility"
-
-        selected_weights_df = pd.DataFrame.from_dict(
+        report_weights_df = pd.DataFrame.from_dict(
             selected_weights, orient="index", columns=[portfolio_name]
         )
 
@@ -660,7 +590,7 @@ with tab4:
         filename_base = f"{portfolio_name}_{timestamp}"
         filepath_base = reports_dir / filename_base
 
-        rp.excel_report(returns=returns, w=selected_weights_df, name=filepath_base)
+        rp.excel_report(returns=returns, w=report_weights_df, name=filepath_base)
 
         st.success("Excel report generated successfully!")
 
@@ -685,7 +615,8 @@ with tab4:
 
     else:
         st.info(
-            "Select a portfolio strategy and click 'Generate Report' to create a comprehensive Excel analysis."
+            "Select a portfolio strategy and click 'Generate Report'"
+            " to create a comprehensive Excel analysis."
         )
 
         st.markdown("### Report Contents")
@@ -701,45 +632,28 @@ with tab4:
 with tab5:
     st.subheader("Risk Analysis Table")
 
-    if portfolio_choice == "Max Sharpe Portfolio":
-        selected_weights = weights_max_sharpe
-        portfolio_label = "Max Sharpe"
-    elif portfolio_choice == "Min Volatility Portfolio":
-        selected_weights = weights_min_vol
-        portfolio_label = "Min Volatility"
-    else:
-        selected_weights = weights_max_utility
-        portfolio_label = "Max Utility"
-
-    symbol_display = ", ".join(symbols[:3]) + ("..." if len(symbols) > 3 else "")
-    st.info(
-        f"**Analyzing Strategy**: {portfolio_choice} | **Symbols**: {symbol_display}"
-    )
-
-    weights_df = pd.DataFrame.from_dict(
-        selected_weights, orient="index", columns=["Weights"]
-    )
+    st.info(f"**Analyzing Strategy**: {portfolio_choice} | **Symbols**: {symbol_display}")
 
     fig, ax = plt.subplots(figsize=(12, 8))
 
     ax = rp.plot_table(
         returns=returns,
-        w=weights_df,
+        w=selected_weights_df,
         MAR=0,
         alpha=0.05,
         ax=ax,
     )
 
     st.pyplot(fig)
+    plt.close(fig)
 
-    # Drawdown Analysis
     st.subheader("Portfolio Drawdown Analysis")
 
     fig_drawdown, ax_drawdown = plt.subplots(figsize=(12, 8))
 
     ax_drawdown = rp.plot_drawdown(
         returns=returns,
-        w=weights_df,
+        w=selected_weights_df,
         alpha=0.05,
         kappa=0.3,
         solver="CLARABEL",
@@ -750,15 +664,15 @@ with tab5:
     )
 
     st.pyplot(fig_drawdown)
+    plt.close(fig_drawdown)
 
-    # Portfolio Returns Risk Measures
     st.subheader("Portfolio Returns Risk Measures")
 
     fig_range, ax_range = plt.subplots(figsize=(12, 6))
 
     ax_range = rp.plot_range(
         returns=returns,
-        w=weights_df,
+        w=selected_weights_df,
         alpha=0.05,
         a_sim=100,
         beta=None,
@@ -770,6 +684,7 @@ with tab5:
     )
 
     st.pyplot(fig_range)
+    plt.close(fig_range)
 
     with st.expander("Understanding the Risk Analysis Table"):
         st.markdown(f"""
@@ -787,8 +702,8 @@ with tab5:
         *Generated using riskfolio-lib risk analysis framework*
         """)
 
-# Footer
 st.markdown("---")
 st.markdown(
-    "*Portfolio optimization based on Modern Portfolio Theory. Past performance does not guarantee future results.*"
+    "*Portfolio optimization based on Modern Portfolio Theory."
+    " Past performance does not guarantee future results.*"
 )
