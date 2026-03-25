@@ -1,5 +1,7 @@
 # pyopt
 
+[Live Demo](https://pyoptimize.streamlit.app)
+
 Stock portfolio optimization for the Vietnamese market using Modern Portfolio Theory.
 
 Built with Streamlit, PyPortfolioOpt, and Riskfolio-lib. Fetches live data from the Vietnam stock exchange via vnstock.
