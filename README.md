@@ -1,12 +1,23 @@
 # pyopt
 
-[Live Demo](https://pyoptimize.streamlit.app)
+<p align="center">
+  <a href="https://pyoptimize.streamlit.app">Live Demo</a>
+</p>
 
-![Demo video](docs/demo.gif)
+<p align="center">
+  <img src="docs/demo.gif" alt="Demo video" />
+</p>
 
 Stock portfolio optimization for the Vietnamese market using Modern Portfolio Theory.
 
 Built with Streamlit, PyPortfolioOpt, and Riskfolio-lib. Fetches live data from the Vietnam stock exchange via vnstock.
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="Streamlit" />
+  <img src="https://img.shields.io/badge/PyPortfolioOpt-1F6FEB?style=for-the-badge&logo=python&logoColor=white" alt="PyPortfolioOpt" />
+  <img src="https://img.shields.io/badge/Riskfolio--Lib-0F766E?style=for-the-badge&logo=python&logoColor=white" alt="Riskfolio-Lib" />
+  <img src="https://img.shields.io/badge/vnstock-F59E0B?style=for-the-badge&logo=python&logoColor=white" alt="vnstock" />
+</p>
 
 ## Features
 
@@ -65,19 +76,6 @@ pyopt/
 | Max Sharpe     | Maximize risk-adjusted return                  |
 | Min Volatility | Minimize portfolio standard deviation          |
 | Max Utility    | Maximize quadratic utility given risk aversion |
-
-## Dependencies
-
-| Package        | Purpose                                              |
-| -------------- | ---------------------------------------------------- |
-| streamlit      | Web application framework                            |
-| pyportfolioopt | Mean-variance optimization, HRP, discrete allocation |
-| riskfolio-lib  | Risk analysis, drawdown plots, Excel reports         |
-| vnstock        | Vietnamese stock market data                         |
-| altair         | Pie chart visualizations                             |
-| matplotlib     | Efficient frontier and risk plots                    |
-| numpy          | Numerical computation                                |
-| pandas         | Data manipulation                                    |
 
 ## License
 
