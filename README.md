@@ -2,7 +2,7 @@
 
 [Live Demo](https://pyoptimize.streamlit.app)
 
-![Demo video](docs/demo.mp4)
+![Demo video](docs/demo.gif)
 
 Stock portfolio optimization for the Vietnamese market using Modern Portfolio Theory.
 
