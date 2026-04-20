@@ -2,6 +2,8 @@
 
 [Live Demo](https://pyoptimize.streamlit.app)
 
+![Demo video](docs/demo.mp4)
+
 Stock portfolio optimization for the Vietnamese market using Modern Portfolio Theory.
 
 Built with Streamlit, PyPortfolioOpt, and Riskfolio-lib. Fetches live data from the Vietnam stock exchange via vnstock.
@@ -49,33 +51,33 @@ pyopt/
 
 ### Sidebar Controls
 
-| Control | Description |
-|---|---|
-| Ticker symbols | Multi-select from all HOSE/HNX/UPCOM listings |
-| Date range | Historical data period for optimization |
-| Risk aversion | Parameter for Max Utility portfolio (0.1–10.0) |
-| Colormap | Color scheme for the efficient frontier scatter plot |
+| Control        | Description                                          |
+| -------------- | ---------------------------------------------------- |
+| Ticker symbols | Multi-select from all HOSE/HNX/UPCOM listings        |
+| Date range     | Historical data period for optimization              |
+| Risk aversion  | Parameter for Max Utility portfolio (0.1–10.0)       |
+| Colormap       | Color scheme for the efficient frontier scatter plot |
 
 ### Portfolio Strategies
 
-| Strategy | Objective |
-|---|---|
-| Max Sharpe | Maximize risk-adjusted return |
-| Min Volatility | Minimize portfolio standard deviation |
-| Max Utility | Maximize quadratic utility given risk aversion |
+| Strategy       | Objective                                      |
+| -------------- | ---------------------------------------------- |
+| Max Sharpe     | Maximize risk-adjusted return                  |
+| Min Volatility | Minimize portfolio standard deviation          |
+| Max Utility    | Maximize quadratic utility given risk aversion |
 
 ## Dependencies
 
-| Package | Purpose |
-|---|---|
-| streamlit | Web application framework |
+| Package        | Purpose                                              |
+| -------------- | ---------------------------------------------------- |
+| streamlit      | Web application framework                            |
 | pyportfolioopt | Mean-variance optimization, HRP, discrete allocation |
-| riskfolio-lib | Risk analysis, drawdown plots, Excel reports |
-| vnstock | Vietnamese stock market data |
-| altair | Pie chart visualizations |
-| matplotlib | Efficient frontier and risk plots |
-| numpy | Numerical computation |
-| pandas | Data manipulation |
+| riskfolio-lib  | Risk analysis, drawdown plots, Excel reports         |
+| vnstock        | Vietnamese stock market data                         |
+| altair         | Pie chart visualizations                             |
+| matplotlib     | Efficient frontier and risk plots                    |
+| numpy          | Numerical computation                                |
+| pandas         | Data manipulation                                    |
 
 ## License
 
